@@ -14,6 +14,20 @@ spec:
       labels:
         app: kafka-connect
     spec:
+      initContainers:
+      - name: download-http-sink
+        image: alpine:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          apk add --no-cache unzip && \
+          wget -qO plugin.zip https://d1i4a15mxbxib1.cloudfront.net/api/plugins/confluentinc/kafka-connect-http/versions/1.0.12/confluentinc-kafka-connect-http-1.0.12.zip && \
+          unzip -q plugin.zip -d /custom-plugins && \
+          rm plugin.zip
+        volumeMounts:
+        - name: custom-plugins
+          mountPath: /custom-plugins
       containers:
       - name: kafka-connect
         image: quay.io/debezium/connect:2.5
@@ -28,9 +42,17 @@ spec:
           value: "connect_offsets"
         - name: STATUS_STORAGE_TOPIC
           value: "connect_statuses"
+        - name: CONNECT_PLUGIN_PATH
+          value: "/kafka/connect,/custom-plugins"
+        volumeMounts:
+        - name: custom-plugins
+          mountPath: /custom-plugins
         ports:
         - containerPort: 8083
           name: rest-api
+      volumes:
+      - name: custom-plugins
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

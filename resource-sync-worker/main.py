@@ -1,16 +1,12 @@
 import os
 import json
-import time
 import shutil
 from pathlib import Path
-from confluent_kafka import Consumer, KafkaError
+from fastapi import FastAPI, Request
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 import git
 
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "dbserver1.public.app_configs")
-KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "k8s-sync-worker-group")
 CRD_GROUP = "poc.gitrenderer.com"
 CRD_VERSION = "v1alpha1"
 CRD_PLURAL = "appconfigs"
@@ -207,45 +203,36 @@ def delete_custom_resource(api_instance, name):
         else:
             print(f"Error deleting CR: {e}")
 
-def main():
+app = FastAPI()
+api_instance = None
+
+@app.on_event("startup")
+def startup_event():
+    global api_instance
     api_instance = init_k8s_client()
-    time.sleep(10)
-    
-    conf = {
-        'bootstrap.servers': KAFKA_BROKER,
-        'group.id': KAFKA_GROUP_ID,
-        'auto.offset.reset': 'earliest'
-    }
-    
-    consumer = Consumer(conf)
-    consumer.subscribe([KAFKA_TOPIC])
-    
-    print(f"Subscribed to topic {KAFKA_TOPIC}. Polling...")
-    
+    print("FastAPI server started. K8s client initialized.")
+
+@app.post("/sync")
+async def sync_endpoint(request: Request):
+    """
+    Receives events from Kafka Connect HTTP Sink POST.
+    Payload will be the actual Debezium event (a list of them or a single object).
+    """
     try:
-        while True:
-            msg = consumer.poll(timeout=1.0)
-            if msg is None:
-                continue
-            if msg.error():
-                if msg.error().code() == KafkaError._PARTITION_EOF:
-                    continue
-                else:
-                    print(msg.error())
-                    break
+        body = await request.json()
+        
+        # Confluent HTTP Sink Connector by default sends a JSON array of Kafka values
+        if isinstance(body, list):
+            for event in body:
+                process_cdc_event(api_instance, event)
+        else:
+            process_cdc_event(api_instance, body)
             
-            val = msg.value()
-            if val:
-                try:
-                    event = json.loads(val.decode('utf-8'))
-                    process_cdc_event(api_instance, event)
-                except Exception as e:
-                    print(f"Error processing message: {e}")
-                    
-    except KeyboardInterrupt:
-        pass
-    finally:
-        consumer.close()
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"Error processing HTTP payload: {e}")
+        return {"status": "error", "message": str(e)}
 
 if __name__ == '__main__':
-    main()
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

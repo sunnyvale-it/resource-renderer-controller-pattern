@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git-server
+  labels:
+    app: git-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: git-server
+  template:
+    metadata:
+      labels:
+        app: git-server
+    spec:
+      initContainers:
+      - name: init-repo
+        image: alpine/git:latest
+        command:
+        - "/bin/sh"
+        - "-c"
+        - "git init --bare /git/configs.git && chmod -R 777 /git/configs.git"
+        volumeMounts:
+        - mountPath: /git
+          name: git-repo
+      containers:
+      - name: git-server
+        image: alpine/git:latest
+        command:
+        - "git"
+        - "daemon"
+        - "--base-path=/git"
+        - "--export-all"
+        - "--enable=receive-pack"
+        - "--reuseaddr"
+        - "--informative-errors"
+        - "--verbose"
+        volumeMounts:
+        - mountPath: /git
+          name: git-repo
+        ports:
+        - containerPort: 9418
+          name: git
+      volumes:
+      - name: git-repo
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: git-server
+spec:
+  selector:
+    app: git-server
+  ports:
+    - protocol: TCP
+      port: 9418
+      targetPort: 9418

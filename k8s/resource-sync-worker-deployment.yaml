@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: sync-worker-sa
+  name: resource-sync-worker-sa
   namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: sync-worker-role
+  name: resource-sync-worker-role
 rules:
 - apiGroups: ["poc.gitrenderer.com"]
   resources: ["appconfigs"]
@@ -16,49 +16,62 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: sync-worker-binding
+  name: resource-sync-worker-binding
 subjects:
 - kind: ServiceAccount
-  name: sync-worker-sa
+  name: resource-sync-worker-sa
   namespace: default
 roleRef:
   kind: ClusterRole
-  name: sync-worker-role
+  name: resource-sync-worker-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sync-worker
+  name: resource-sync-worker
   labels:
-    app: sync-worker
+    app: resource-sync-worker
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: sync-worker
+      app: resource-sync-worker
   template:
     metadata:
       labels:
-        app: sync-worker
+        app: resource-sync-worker
     spec:
-      serviceAccountName: sync-worker-sa
+      serviceAccountName: resource-sync-worker-sa
       containers:
-      - name: sync-worker
+      - name: resource-sync-worker
         image: resource-renderer-sync-worker:latest
         imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
         volumeMounts:
         - name: repo-volume
           mountPath: /var/lib/sync-worker/repo
         env:
-        - name: KAFKA_BROKER
-          value: "kafka:9092"
-        - name: KAFKA_TOPIC
-          value: "dbserver1.public.app_configs"
         - name: NAMESPACE
           value: "default"
         - name: RENDER_TARGET
           value: "git"
+        - name: GIT_TARGET_REPO
+          value: "git://git-server.default.svc.cluster.local:9418/configs.git"
       volumes:
       - name: repo-volume
         emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resource-sync-worker
+spec:
+  selector:
+    app: resource-sync-worker
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
