@@ -50,45 +50,34 @@ Deploy the local Git server and ArgoCD seamlessly:
 ```
 *Port-forward ArgoCD `kubectl port-forward svc/argocd-server -n default 8080:80` to view the UI.*
 
-### 3. Deploy Kafka Connect (Debezium)
-Apply the Kafka connect deployment:
+### 3. Build Custom Images
+Because Kafka Connect uses a custom plugin, it requires a custom build alongside the standard components. Build them on your host:
 ```bash
-kubectl apply -f k8s/infrastructure/kafka-connect.yaml
+docker build -t resource-renderer-kafka-connect:latest -f ./k8s/infrastructure/Dockerfile.connect ./k8s/infrastructure
+docker build -t resource-renderer-backend:latest ./backend
+docker build -t resource-renderer-frontend:latest ./frontend
+docker build -t resource-renderer-sync-worker:latest ./resource-sync-worker
+
+# IMPORTANT: If using KinD, load the images sequentially into the cluster nodes:
+kind load docker-image resource-renderer-kafka-connect:latest resource-renderer-backend:latest resource-renderer-frontend:latest resource-renderer-sync-worker:latest --name resource-renderer-cluster
 ```
-Once the pod is running, register the Postgres Debezium source connector and the HTTP Sink connector by port-forwarding the service:
+
+### 4. Deploy Custom Components
+Deploy the Custom Resource Definition, Kafka Connect, and the application components:
+```bash
+kubectl apply -f k8s/crd.yaml
+kubectl apply -f k8s/infrastructure/kafka-connect.yaml
+kubectl apply -f k8s/backend-deployment.yaml
+kubectl apply -f k8s/frontend-deployment.yaml
+kubectl apply -f k8s/resource-sync-worker-deployment.yaml
+```
+
+### 5. Register Kafka Connectors
+Once the `kafka-connect` pod is fully running, initialize the PostgreSQL integration and HTTP Sync webhook:
 ```bash
 kubectl port-forward svc/kafka-connect 8083:8083 &
 ./k8s/infrastructure/register-connector.sh
 ./k8s/infrastructure/register-http-sink.sh
-```
-
-### 4. Apply the Custom Resource Definition (CRD)
-```bash
-kubectl apply -f k8s/crd.yaml
-```
-
-### 5. Build and Deploy Custom Components
-To build the images locally (assuming you are pointing to your cluster's Docker daemon, e.g. `eval $(minikube docker-env)`):
-
-```bash
-# Build Custom Kafka Connect (with HTTP Sink)
-docker build -t resource-renderer-kafka-connect:latest -f ./k8s/infrastructure/Dockerfile.connect ./k8s/infrastructure
-# Build Backend
-docker build -t resource-renderer-backend:latest ./backend
-# Build Frontend
-docker build -t resource-renderer-frontend:latest ./frontend
-# Build Sync Worker
-docker build -t resource-renderer-sync-worker:latest ./resource-sync-worker
-
-# IMPORTANT: If using KinD (Kubernetes in Docker), you MUST load these directly into the cluster nodes:
-kind load docker-image resource-renderer-kafka-connect:latest resource-renderer-backend:latest resource-renderer-frontend:latest resource-renderer-sync-worker:latest --name resource-renderer-cluster
-```
-
-Now deploy them to the cluster:
-```bash
-kubectl apply -f k8s/backend-deployment.yaml
-kubectl apply -f k8s/frontend-deployment.yaml
-kubectl apply -f k8s/resource-sync-worker-deployment.yaml
 ```
 
 ### 6. Access the Frontend UI
