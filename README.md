@@ -6,11 +6,11 @@ This project is a Proof of Concept demonstrating the "Resource Renderer Controll
 
 ```mermaid
 graph TD
-    User([User]) -->|Manages AppConfigs| UI[React Frontend UI]
-    UI -->|REST API| API[FastAPI Backend]
-    API -->|SQLAlchemy CRUD| DB[(PostgreSQL)]
+    User([User]) -->|Manages AppConfigs| UI
     
     subgraph K8s Cluster
+        UI[React Frontend UI] -->|REST API| API[FastAPI Backend]
+        API -->|SQLAlchemy CRUD| DB[(PostgreSQL)]
         DB
         KafkaConnect[Debezium Kafka Connect] -->|Logical Decoding| DB
         KafkaConnect -->|CDC Events| Kafka[Kafka Broker]
