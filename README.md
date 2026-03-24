@@ -1,0 +1,88 @@
+# Git Renderer Controller Pattern PoC
+
+This project is a Proof of Concept demonstrating the "Git Renderer Controller Pattern". It showcases a Kubernetes-native application that persists its state in a PostgreSQL database. Changes in the database are captured via Debezium (CDC) and published to Kafka. A custom Kubernetes Sync Worker consumes these events and translates them into Kubernetes Custom Resources (`AppConfig`), effectively rendering the database state into the cluster.
+
+## Architecture Diagram
+
+```mermaid
+graph TD
+    User([User]) -->|Manages AppConfigs| UI[React Frontend UI]
+    UI -->|REST API| API[FastAPI Backend]
+    API -->|SQLAlchemy CRUD| DB[(PostgreSQL)]
+    
+    subgraph K8s Cluster
+        DB
+        KafkaConnect[Debezium Kafka Connect] -->|Logical Decoding| DB
+        KafkaConnect -->|CDC Events| Kafka[Kafka Broker]
+        
+        SyncWorker[Python K8s Sync Worker] -->|Consumes Events| Kafka
+        SyncWorker -->|Applies CRs| K8sAPI[Kubernetes API]
+        
+        K8sAPI --> CRD[AppConfig Custom Resources]
+    end
+```
+
+## Prerequisites
+- A Kubernetes cluster (e.g., Minikube, k3d, Docker Desktop K8s)
+- `kubectl` configured
+- `helm` installed
+- `docker` (to build the images)
+
+## Deployment Guide
+
+### 1. Install Base Infrastructure (Helm)
+First, deploy PostgreSQL and Kafka using the provided script.
+```bash
+./k8s/infrastructure/install-infra.sh
+```
+*Wait for the Pods to become ready before proceeding.*
+
+### 2. Deploy Kafka Connect (Debezium)
+Apply the Kafka connect deployment:
+```bash
+kubectl apply -f k8s/infrastructure/kafka-connect.yaml
+```
+Once the pod is running, register the Postgres Debezium source connector by port-forwarding the service:
+```bash
+kubectl port-forward svc/kafka-connect 8083:8083 &
+./k8s/infrastructure/register-connector.sh
+```
+
+### 3. Apply the Custom Resource Definition (CRD)
+```bash
+kubectl apply -f k8s/crd.yaml
+```
+
+### 4. Build and Deploy Custom Components
+To build the images locally (assuming you are pointing to your cluster's Docker daemon, e.g. `eval $(minikube docker-env)`):
+
+```bash
+# Build Backend
+docker build -t git-renderer-backend:latest ./backend
+# Build Frontend
+docker build -t git-renderer-frontend:latest ./frontend
+# Build Sync Worker
+docker build -t git-renderer-sync-worker:latest ./k8s-sync-worker
+```
+
+Now deploy them to the cluster:
+```bash
+kubectl apply -f k8s/backend-deployment.yaml
+kubectl apply -f k8s/frontend-deployment.yaml
+kubectl apply -f k8s/sync-worker-deployment.yaml
+```
+
+### 5. Access the Frontend UI
+Port-forward the frontend service to access it on your browser:
+```bash
+kubectl port-forward svc/frontend 8080:80
+```
+Visit http://localhost:8080 and start creating `AppConfig` items!
+
+## Verification
+Whenever you create, update, or delete an item in the UI:
+1. The backend updates the Postgres database.
+2. Debezium detects the change and pushes an event to Kafka.
+3. The Sync Worker reads the message and updates Kubernetes.
+
+Run `kubectl get appconfigs -w` to instantly see your configurations reflected in the cluster state!
