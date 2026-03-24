@@ -1,0 +1,11 @@
+FROM quay.io/debezium/connect:2.5
+
+USER root
+
+# Download Aiven HTTP Sink Connector from GitHub to bypass CloudFront DNS blocks
+RUN curl -sSL -o plugin.tar https://github.com/Aiven-Open/http-connector-for-apache-kafka/releases/download/v0.7.0/http-connector-for-apache-kafka-0.7.0.tar && \
+    mkdir -p /kafka/connect/aiven-http-sink && \
+    tar xf plugin.tar -C /kafka/connect/aiven-http-sink --strip-components=1 && \
+    rm plugin.tar
+
+USER kafka
