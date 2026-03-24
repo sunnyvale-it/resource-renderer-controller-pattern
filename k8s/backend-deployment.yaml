@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: git-renderer-backend:latest
+        image: resource-renderer-backend:latest
         imagePullPolicy: IfNotPresent
         env:
         - name: DATABASE_URL

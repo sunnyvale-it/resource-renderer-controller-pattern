@@ -1,6 +1,6 @@
-# Git Renderer Controller Pattern PoC
+# Resource Renderer Controller Pattern PoC
 
-This project is a Proof of Concept demonstrating the "Git Renderer Controller Pattern". It showcases a Kubernetes-native application that persists its state in a PostgreSQL database. Changes in the database are captured via Debezium (CDC) and published to Kafka. A custom Kubernetes Sync Worker consumes these events and translates them into Kubernetes Custom Resources (`AppConfig`), effectively rendering the database state into the cluster.
+This project is a Proof of Concept demonstrating the "Resource Renderer Controller Pattern". It showcases a Kubernetes-native application that persists its state in a PostgreSQL database. Changes in the database are captured via Debezium (CDC) and published to Kafka. A custom Kubernetes Sync Worker consumes these events and translates them into Kubernetes Custom Resources (`AppConfig`), effectively rendering the database state into the cluster.
 
 ## Architecture Diagram
 
@@ -58,11 +58,11 @@ To build the images locally (assuming you are pointing to your cluster's Docker 
 
 ```bash
 # Build Backend
-docker build -t git-renderer-backend:latest ./backend
+docker build -t resource-renderer-backend:latest ./backend
 # Build Frontend
-docker build -t git-renderer-frontend:latest ./frontend
+docker build -t resource-renderer-frontend:latest ./frontend
 # Build Sync Worker
-docker build -t git-renderer-sync-worker:latest ./k8s-sync-worker
+docker build -t resource-renderer-sync-worker:latest ./k8s-sync-worker
 ```
 
 Now deploy them to the cluster:

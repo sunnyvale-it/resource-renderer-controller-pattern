@@ -9,7 +9,7 @@ from .database import engine
 # In a pure PoC avoiding alembic migrations, auto-create tables
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Git Renderer Controller API")
+app = FastAPI(title="Resource Renderer Controller API")
 
 app.add_middleware(
     CORSMiddleware,

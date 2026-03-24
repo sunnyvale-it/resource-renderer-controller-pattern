@@ -59,7 +59,7 @@ function App() {
 
   return (
     <div className="app-container">
-      <h1>Git Renderer Controller</h1>
+      <h1>Resource Renderer Controller</h1>
       
       <form onSubmit={handleSubmit} style={{ marginBottom: '40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>

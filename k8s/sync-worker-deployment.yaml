@@ -45,8 +45,11 @@ spec:
       serviceAccountName: sync-worker-sa
       containers:
       - name: sync-worker
-        image: git-renderer-sync-worker:latest
+        image: resource-renderer-sync-worker:latest
         imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: repo-volume
+          mountPath: /var/lib/sync-worker/repo
         env:
         - name: KAFKA_BROKER
           value: "kafka:9092"
@@ -54,3 +57,8 @@ spec:
           value: "dbserver1.public.app_configs"
         - name: NAMESPACE
           value: "default"
+        - name: RENDER_TARGET
+          value: "git"
+      volumes:
+      - name: repo-volume
+        emptyDir: {}
