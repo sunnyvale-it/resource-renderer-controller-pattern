@@ -80,9 +80,13 @@ Once the `kafka-connect` pod is fully running, initialize the PostgreSQL integra
 ```
 
 ### 6. Access the Frontend UI
-Port-forward the frontend service to access it on your browser:
+Port-forward both the frontend UI and the backend REST API so your browser can communicate directly with the backend:
 ```bash
+# In one terminal:
 kubectl port-forward svc/frontend 8080:80
+
+# In another terminal:
+kubectl port-forward svc/backend 8000:8000
 ```
 Visit http://localhost:8080 and start creating `AppConfig` items!
 
