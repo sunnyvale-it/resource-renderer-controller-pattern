@@ -73,9 +73,8 @@ kubectl apply -f k8s/resource-sync-worker-deployment.yaml
 ```
 
 ### 5. Register Kafka Connectors
-Once the `kafka-connect` pod is fully running, initialize the PostgreSQL integration and HTTP Sync webhook:
+Once the `kafka-connect` pod is fully running, initialize the PostgreSQL integration and HTTP Sync webhook directly inside the cluster:
 ```bash
-kubectl port-forward svc/kafka-connect 8083:8083 &
 ./k8s/infrastructure/register-connector.sh
 ./k8s/infrastructure/register-http-sink.sh
 ```

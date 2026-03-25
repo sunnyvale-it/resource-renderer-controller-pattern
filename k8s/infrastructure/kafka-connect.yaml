@@ -20,7 +20,7 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: BOOTSTRAP_SERVERS
-          value: kafka:9092
+          value: kafka-broker-headless:9092
         - name: GROUP_ID
           value: "1"
         - name: CONFIG_STORAGE_TOPIC

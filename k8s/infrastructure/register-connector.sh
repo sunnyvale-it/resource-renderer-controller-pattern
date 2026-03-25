@@ -1,11 +1,8 @@
 #!/bin/bash
 
-# Ensure we port-forward the Kafka Connect service before running this
-# kubectl port-forward svc/kafka-connect 8083:8083 &
+echo "Registering Postgres Debezium connector from within the cluster..."
 
-echo "Registering Postgres Debezium connector..."
-
-curl -X POST -H "Content-Type: application/json" --data '{
+kubectl exec deployment/kafka-connect -- curl -s -X POST -H "Content-Type: application/json" --data '{
   "name": "postgres-connector",
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",

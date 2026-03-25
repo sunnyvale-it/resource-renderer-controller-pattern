@@ -1,11 +1,8 @@
 #!/bin/bash
 
-# Ensure we port-forward the Kafka Connect service before running this
-# kubectl port-forward svc/kafka-connect 8083:8083 &
+echo "Registering HTTP Sink connector from within the cluster..."
 
-echo "Registering HTTP Sink connector to send CDC events to resource-sync-worker..."
-
-curl -X POST -H "Content-Type: application/json" --data '{
+kubectl exec deployment/kafka-connect -- curl -s -X POST -H "Content-Type: application/json" --data '{
   "name": "resource-sync-http-sink",
   "config": {
     "connector.class": "io.aiven.kafka.connect.http.HttpSinkConnector",
