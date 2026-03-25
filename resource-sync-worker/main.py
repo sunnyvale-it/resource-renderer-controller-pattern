@@ -138,7 +138,7 @@ def apply_git_resource(data):
             "namespace": "default"
         },
         "spec": {
-            "repositoryUrl": data.get("repository_url"),
+            "repository_url": data.get("repository_url"),
             "branch": data.get("branch"),
             "environment": data.get("environment")
         }

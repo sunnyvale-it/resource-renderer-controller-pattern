@@ -13,7 +13,8 @@ kubectl exec deployment/kafka-connect -- curl -s -X POST -H "Content-Type: appli
     "database.password": "postgres",
     "database.dbname": "appdb",
     "topic.prefix": "dbserver1",
-    "plugin.name": "pgoutput"
+    "plugin.name": "pgoutput",
+    "tombstones.on.delete": "false"
   }
 }' http://localhost:8083/connectors
 

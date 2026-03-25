@@ -14,6 +14,7 @@ interface AppConfig {
 function App() {
   const [configs, setConfigs] = useState<AppConfig[]>([]);
   const [formData, setFormData] = useState({ name: '', repository_url: '', branch: 'main', environment: 'production' });
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const fetchConfigs = async () => {
     try {
@@ -33,18 +34,42 @@ function App() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleEdit = (config: AppConfig) => {
+    setFormData({
+      name: config.name,
+      repository_url: config.repository_url,
+      branch: config.branch,
+      environment: config.environment
+    });
+    setEditingId(config.id);
+  };
+
+  const handleCancelEdit = () => {
+    setFormData({ name: '', repository_url: '', branch: 'main', environment: 'production' });
+    setEditingId(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch(`${API_BASE}/appconfigs/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
+      if (editingId) {
+        await fetch(`${API_BASE}/appconfigs/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        setEditingId(null);
+      } else {
+        await fetch(`${API_BASE}/appconfigs/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+      }
       setFormData({ name: '', repository_url: '', branch: 'main', environment: 'production' });
       fetchConfigs();
     } catch (e) {
-      console.error("Failed to create config", e);
+      console.error("Failed to save config", e);
     }
   };
 
@@ -65,7 +90,7 @@ function App() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
           <div className="form-group">
             <label>Name</label>
-            <input name="name" value={formData.name} onChange={handleInputChange} required placeholder="e.g. backend-api" />
+            <input name="name" value={formData.name} onChange={handleInputChange} required placeholder="e.g. backend-api" disabled={!!editingId} />
           </div>
           <div className="form-group">
             <label>Environment</label>
@@ -80,18 +105,38 @@ function App() {
             <input name="branch" value={formData.branch} onChange={handleInputChange} required placeholder="main" />
           </div>
         </div>
-        <button type="submit" style={{ width: '100%', marginTop: '10px' }}>Create Config</button>
+        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          <button type="submit" style={{ flex: 1 }}>{editingId ? 'Update Config' : 'Create Config'}</button>
+          {editingId && (
+            <button type="button" onClick={handleCancelEdit} style={{ flex: 1, backgroundColor: '#475569' }}>Cancel</button>
+          )}
+        </div>
       </form>
 
       <div className="configs-list">
         {configs.length > 0 ? configs.map(config => (
           <div key={config.id} className="item-card">
-            <div className="item-details">
+            <div className="item-details" style={{ flex: 1 }}>
               <h3>{config.name} <span style={{fontSize: '0.8em', color: '#38bdf8'}}>[{config.environment}]</span></h3>
               <p>Repo: {config.repository_url}</p>
               <p>Branch: {config.branch}</p>
             </div>
-            <button className="danger" onClick={() => handleDelete(config.id)}>Delete</button>
+            <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+              <button 
+                type="button" 
+                onClick={() => handleEdit(config)} 
+                style={{ backgroundColor: '#f59e0b', padding: '0.4rem 0.8rem', fontSize: '0.8em' }}
+              >
+                Edit
+              </button>
+              <button 
+                className="danger" 
+                onClick={() => handleDelete(config.id)}
+                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8em' }}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         )) : <p style={{textAlign: 'center', color: '#94a3b8'}}>No configurations found. Create one above.</p>}
       </div>
