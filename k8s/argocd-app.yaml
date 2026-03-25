@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: configs-sync
+  namespace: default
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.default.svc.cluster.local:9418/configs.git
+    targetRevision: main
+    path: resources/appconfigs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

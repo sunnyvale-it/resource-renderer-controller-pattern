@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import shutil
 from pathlib import Path
@@ -30,6 +31,14 @@ def init_k8s_client():
     
     return client.CustomObjectsApi()
 
+def clear_directory(d):
+    for item in os.listdir(d):
+        item_path = os.path.join(d, item)
+        if os.path.isfile(item_path) or os.path.islink(item_path):
+            os.unlink(item_path)
+        elif os.path.isdir(item_path):
+            shutil.rmtree(item_path)
+
 def sync_git_repo():
     print(f"Ensuring Git repository is present and up-to-date at {GIT_CLONE_DIR}...")
     if not os.path.exists(GIT_CLONE_DIR):
@@ -43,8 +52,16 @@ def sync_git_repo():
     except (git.exc.InvalidGitRepositoryError, git.exc.NoSuchPathError, Exception) as e:
         print(f"Repository not valid or mismatch ({e}). Removing and re-cloning...")
         if os.path.exists(GIT_CLONE_DIR):
-            shutil.rmtree(GIT_CLONE_DIR)
-        repo = git.Repo.clone_from(GIT_TARGET_REPO, GIT_CLONE_DIR, branch=GIT_TARGET_BRANCH)
+            clear_directory(GIT_CLONE_DIR)
+        try:
+            repo = git.Repo.clone_from(GIT_TARGET_REPO, GIT_CLONE_DIR, branch=GIT_TARGET_BRANCH)
+        except git.exc.GitCommandError:
+            print("Remote branch not found or repo empty. Cloning normally.", file=sys.stderr)
+            repo = git.Repo.clone_from(GIT_TARGET_REPO, GIT_CLONE_DIR)
+            try:
+                repo.git.checkout(b=GIT_TARGET_BRANCH)
+            except git.exc.GitCommandError:
+                pass
 
     # Bulletproof state: discard any crashed local changes and pull latest
     try:
@@ -52,9 +69,16 @@ def sync_git_repo():
         repo.git.reset('--hard', f'origin/{GIT_TARGET_BRANCH}')
         repo.git.clean('-fd')
     except Exception as e:
-        print(f"Failed to reset repository state: {e}. Attempting re-clone as fallback.")
-        shutil.rmtree(GIT_CLONE_DIR)
-        repo = git.Repo.clone_from(GIT_TARGET_REPO, GIT_CLONE_DIR, branch=GIT_TARGET_BRANCH)
+        print(f"Failed to reset repository state: {e}. Attempting re-clone as fallback.", file=sys.stderr)
+        clear_directory(GIT_CLONE_DIR)
+        try:
+            repo = git.Repo.clone_from(GIT_TARGET_REPO, GIT_CLONE_DIR, branch=GIT_TARGET_BRANCH)
+        except git.exc.GitCommandError:
+            repo = git.Repo.clone_from(GIT_TARGET_REPO, GIT_CLONE_DIR)
+            try:
+                repo.git.checkout(b=GIT_TARGET_BRANCH)
+            except git.exc.GitCommandError:
+                pass
     
     with repo.config_writer() as git_config:
         git_config.set_value('user', 'email', GIT_AUTHOR_EMAIL)
@@ -105,14 +129,29 @@ def apply_git_resource(data):
     resources_dir.mkdir(parents=True, exist_ok=True)
     file_path = resources_dir / f"{k8s_name}.json"
     
+    # Construct a valid Kubernetes Custom Resource Manifest
+    k8s_manifest = {
+        "apiVersion": "poc.gitrenderer.com/v1alpha1",
+        "kind": "AppConfig",
+        "metadata": {
+            "name": k8s_name,
+            "namespace": "default"
+        },
+        "spec": {
+            "repositoryUrl": data.get("repository_url"),
+            "branch": data.get("branch"),
+            "environment": data.get("environment")
+        }
+    }
+    
     print(f"[GIT RENDERER] Writing AppConfig '{k8s_name}' to {file_path}")
     with open(file_path, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(k8s_manifest, f, indent=2)
         
     repo.index.add([str(file_path.absolute())])
     if repo.is_dirty(untracked_files=True):
         repo.index.commit(f"Auto-update AppConfig: {k8s_name}")
-        repo.remote(name='origin').push()
+        repo.remote(name='origin').push(refspec=f'HEAD:{GIT_TARGET_BRANCH}')
         print(f"[GIT RENDERER] Successfully committed and pushed '{k8s_name}' to Git.")
     else:
         print(f"[GIT RENDERER] No changes detected for '{k8s_name}', skipping commit.")
@@ -129,7 +168,7 @@ def delete_git_resource(name):
         print(f"[GIT RENDERER] Removing AppConfig '{k8s_name}' from {file_path}")
         repo.index.remove([str(file_path.absolute())], working_tree=True)
         repo.index.commit(f"Auto-delete AppConfig: {k8s_name}")
-        repo.remote(name='origin').push()
+        repo.remote(name='origin').push(refspec=f'HEAD:{GIT_TARGET_BRANCH}')
         print(f"[GIT RENDERER] Successfully removed and pushed '{k8s_name}' to Git.")
     else:
         print(f"[GIT RENDERER] File for '{k8s_name}' does not exist. Skipping delete.")
@@ -219,6 +258,15 @@ async def sync_endpoint(request: Request):
     Payload will be the actual Debezium event (a list of them or a single object).
     """
     try:
+        import sys
+        raw_body = await request.body()
+        print(f"Headers: {request.headers}", file=sys.stderr)
+        print(f"Raw body length: {len(raw_body)}", file=sys.stderr)
+        print(f"Raw body content: {raw_body}", file=sys.stderr)
+        
+        if not raw_body:
+            return {"status": "ok", "message": "empty body"}
+            
         body = await request.json()
         
         # Confluent HTTP Sink Connector by default sends a JSON array of Kafka values
@@ -230,9 +278,16 @@ async def sync_endpoint(request: Request):
             
         return {"status": "ok"}
     except Exception as e:
-        print(f"Error processing HTTP payload: {e}")
+        print(f"Error processing HTTP payload: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
 if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import hypercorn.asyncio
+    import hypercorn.config
+    import asyncio
+    hc_config = hypercorn.config.Config()
+    hc_config.bind = ["0.0.0.0:8000"]
+    hc_config.h2c_handshake = True
+    asyncio.run(hypercorn.asyncio.serve(app, hc_config))
