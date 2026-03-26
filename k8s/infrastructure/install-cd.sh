@@ -11,7 +11,7 @@ helm repo update
 echo "Installing ArgoCD..."
 helm upgrade --install argocd argo/argo-cd \
   --namespace default \
-  --set server.extraArgs="{--insecure}"
+  -f k8s/infrastructure/argocd-values.yaml
 
 echo "Waiting for ArgoCD server to be ready..."
 kubectl wait --for=condition=available deployment/argocd-server -n default --timeout=300s

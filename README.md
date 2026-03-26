@@ -49,6 +49,7 @@ Deploy the local Git server and ArgoCD seamlessly:
 ./k8s/infrastructure/install-cd.sh
 ```
 *Port-forward ArgoCD `kubectl port-forward svc/argocd-server -n default 8080:80` to view the UI.*
+*Login with username **`admin`** and password **`admin123`**.*
 
 ### 3. Build Custom Images
 Because Kafka Connect uses a custom plugin, it requires a custom build alongside the standard components. Build them on your host:
